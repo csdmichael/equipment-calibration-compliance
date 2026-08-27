@@ -136,32 +136,12 @@ these repository secrets and variables first:
 ## Published links
 
 <!-- agentic-sdlc:published-links:start -->
-| Component | URL |
-| --- | --- |
-| UI | <https://equipment-calibration-compliance-ui.azurewebsites.net> |
-| API | <https://equipment-calibration-compliance-api.azurewebsites.net> |
-| Swagger UI | <https://equipment-calibration-compliance-api.azurewebsites.net/docs> |
-| OpenAPI document | <https://equipment-calibration-compliance-api.azurewebsites.net/openapi.json> |
-| Compliance API | <https://equipment-calibration-compliance-api.azurewebsites.net/api/compliances> |
-| API health probe | <https://equipment-calibration-compliance-api.azurewebsites.net/health> |
-
-_Published and verified 2026-08-27 05:15 UTC by the Agentic SDLC DevOps & Release Agent via `deploy-azure.yml`. Smoke tests covered the health probe, Swagger/OpenAPI, the UI, and a create/update/delete round trip._
+_Populated automatically once the deployment pipeline succeeds._
 <!-- agentic-sdlc:published-links:end -->
 
 ## Requirements scope
 
-- **Instrument schedule tables**
-- `instruments` (id, description, location_id, criticality, interval_days, usage_basis, last_calibration_id, owner_contact).
-- `instrument_due_view` (materialized or SQL view) computing `days_to_due`, `due_status` (due/overdue/extended), `extension_id`.
-- **Extensions**
-- `instrument_extensions` (id, instrument_id, expires_at, justification, approver_id, approved_by_role, created_at, created_by_id). Add unique constraint enforcing one active extension per instrument.
-- **Calibrations & readings**
-- `calibrations` (id, instrument_id, procedure_id, procedure_revision, reference_standard_id, environmental_snapshot, competency_check_id, status enum {IN_PROGRESS, PASS, FAIL}, started_at, submitted_at, submitted_by).
-- `calibration_points` (id, calibration_id, sequence, nominal_value, tolerance_plus, tolerance_minus, as_found_value, as_found_entered_at, as_left_value, as_left_entered_at, result enum {PENDING, IN_TOLERANCE, OUT_OF_TOLERANCE}, immutable constraint on `as_found_value` once set).
-- **Impact scaffolding**
-- `impact_assessments` (id, calibration_id, status, measurement_range_start/end, completeness_flag, narrative_draft_blob_uri, approved_narrative_at, approved_by).
-- `impact_measurements` to store resolved MES records; include `source_system_sync_token` for resumable fetch.
-- **Audit trail**
+- Deliver the approved requirements.
 
 ## Intake documents
 
