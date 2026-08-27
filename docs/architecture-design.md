@@ -1,1112 +1,887 @@
-# Architecture Advisor — Design-Stage Reviewable Proposal
+# Architecture Advisor Agent — Design-Stage Reviewable Proposal
 
 **Project:** Equipment Calibration Compliance  
 **Target environment:** Dev  
 **Stage:** Design  
-**Proposal status:** Reviewable draft  
-**Source basis:** Intake documents plus approved Requirements Agent summary  
-**Important note:** Source intake documents are marked **Draft** and portions were truncated in the provided payload. This proposal identifies assumptions and open decisions rather than treating missing details as approved.
-
----
+**Status:** Reviewable proposal only; implementation should not proceed without human approval
 
 ## 1. Executive summary
 
-I recommend a **modular Azure-based architecture** with:
+This proposal translates the approved planning inputs into a governed design for an equipment calibration compliance solution using:
 
-- **Ionic 8 + Angular 18** client for tablet, handheld, and browser experiences
-- **Python 3.12 + FastAPI** as the primary domain API
-- **Azure SQL Database** as the system of record for calibration records, readings, impact assessments, and certificate metadata
-- **Azure Blob Storage with immutability** for issued certificates and evidence artifacts
-- **Azure Functions** for:
-  - impact assessment orchestration/execution
-  - certificate rendering/generation
-- **Microsoft Agent Framework / Foundry** for **drafting impact narratives only**
+- **Angular 18 + Ionic 8** client
+- **Python 3.12 + FastAPI** service layer
+- **Azure SQL Database**
+- **Azure Blob Storage** for immutable issued artifacts
+- **Azure App Service** hosting
+- **Azure Functions** for impact assessment and certificate generation
+- **Microsoft Agent Framework / Foundry** for impact narrative drafting
 - **Azure API Management** as the mandatory gateway for all model traffic
-- **Microsoft Entra ID** for identity, with competency enforced server-side
-- **Offline-first client behavior** with queued synchronization and conflict rules designed around immutable as-found data
+- **Microsoft Entra ID** for identity and access control
 
-This design aligns with the stated constraints:
+The design centers on a few non-negotiable business rules from the intake documents:
 
-- **As-found readings must be immutable**
-- **Certificate issue must be competency-gated**
-- **Impact assessment must never be silently incomplete**
-- **AI output is assistive only, never authoritative for deterministic impact scope**
+1. **As-found readings are immutable once committed**
+2. **Reference standards must be in calibration to be used**
+3. **Impact assessment must never appear complete when it is not**
+4. **Certificate issue is competency-gated and attributable**
+5. **Issued certificates and supporting evidence must be immutable**
+6. **AI may draft narrative only; it must not determine impact scope or disposition**
 
----
+## 2. Proposed architecture
 
-## 2. Architecture goals
+## 2.1 Logical architecture
 
-### Primary design goals
-1. Preserve calibration record integrity.
-2. Prevent use of overdue instruments.
-3. Support guided, auditable calibration execution.
-4. Produce deterministic impact lists for out-of-tolerance events.
-5. Block certificate issue when prerequisite data is incomplete or stale.
-6. Support intermittent connectivity with safe offline capture.
-7. Maintain traceability to reference standards and issued certificates.
-8. Keep AI usage bounded, reviewable, and non-authoritative.
+```text
+[Ionic/Angular Client]
+   |  HTTPS / OAuth2
+   v
+[Azure API Management]
+   |
+   v
+[FastAPI Calibration Service on Azure App Service]
+   |----> [Azure SQL Database]
+   |----> [Azure Blob Storage]
+   |----> [QMS API: instrument master, procedures]
+   |----> [Training Records API: competency]
+   |----> [Azure Functions: Impact Assessment Engine]
+   |----> [Azure Functions: Certificate Generator]
+   |----> [APIM -> Microsoft Agent Framework / Foundry]
+                    |
+                    v
+              [Impact Narrative Draft]
 
-### Quality attributes
-- **Integrity:** highest priority
-- **Auditability:** mandatory
-- **Availability:** laboratory-hours operational availability
-- **Consistency:** strong consistency for calibration records and impact decisions
-- **Usability:** gloved/mobile workflows, explicit status wording
-- **Security/compliance:** attributable actions, immutable records, least privilege
+[Impact Assessment Engine]
+   |----> [MES Measurement History API]
+```
 
----
+## 2.2 Component responsibilities
 
-## 3. Proposed logical architecture
-
-## 3.1 Context view
-
-**Users**
-- Metrology technician
-- Production supervisor
-- Quality engineer
-- Quality manager
-
-**Primary solution components**
-- Calibration client app
-- Calibration API/service
-- Impact assessment engine
-- Certificate generator
-- Impact narrative workflow
-- Integration adapters/cache
-- SQL database
-- Blob storage
-
-**External systems**
-- Quality Management System (QMS): instrument master, procedures
-- Manufacturing Execution System (MES): measurement history
-- Training Records System: competency verification
-- Microsoft Foundry via APIM: narrative drafting only
-
----
-
-## 3.2 Container/component view
-
-### A. Calibration Client
-**Technology:** Ionic 8, Angular 18, TypeScript  
+### A. Client application
+**Technology:** Angular 18, TypeScript, Ionic 8  
 **Responsibilities:**
-- Due/overdue list
+- Due/overdue worklist
 - Guided calibration capture
-- Offline data entry and sync queue
+- Offline-first local work queue
 - Impact review UI
 - Certificate issue UI
-- Barcode scanning integration
-- Explicit lock-state presentation for as-found values
+- Barcode scan initiation
+- Clear display of lock states, failures, and incomplete impact results
 
-**Notes:**
-- Client must not be trusted for business enforcement.
-- Server remains authoritative for overdue blocking, competency, certificate issue, and immutable state transitions.
-
----
-
-### B. Calibration Service
-**Technology:** Python 3.12, FastAPI on Azure App Service  
+### B. Calibration service
+**Technology:** FastAPI on Azure App Service  
 **Responsibilities:**
-- Core domain API
-- Calibration lifecycle/state machine
+- Calibration workflow orchestration
 - As-found locking enforcement
 - Tolerance evaluation
 - Reference standard validity checks
-- Extension management
-- Competency enforcement
-- Certificate issue authorization
-- Audit event generation
-- Sync ingestion and reconciliation
-- Orchestration of impact and certificate workflows
+- Competency enforcement for certificate issue
+- Audit trail creation
+- Sync conflict handling
+- Integration façade over QMS, training records, storage, and downstream functions
 
-**Why centralize here:**  
-This is the domain authority and should own all invariant rules.
-
----
-
-### C. Impact Assessment Engine
+### C. Impact assessment engine
 **Technology:** Python Azure Functions  
 **Responsibilities:**
-- Trigger on failed as-found/out-of-tolerance calibration
-- Resolve measurements since last passing calibration
-- Query MES history
-- Produce deterministic impact set
-- Mark result complete/partial/incomplete
-- Persist impact assessment status and evidence
+- Deterministic retrieval of affected measurements since last passing calibration
+- Completeness state calculation
+- Partial-result labeling
+- Correlation of instrument, work order, lot, and measurement references
 
-**Design principle:**  
-The impact list is deterministic and must not depend on AI.
-
----
-
-### D. Certificate Generator
+### D. Certificate generator
 **Technology:** Python Azure Functions  
 **Responsibilities:**
-- Render certificate from stored calibration record
-- Include traceability chain and reference standard details
-- Write final artifact to immutable Blob storage
-- Return certificate metadata and storage URI/reference
+- Render certificate from persisted calibration record only
+- Include traceability chain and evidence references
+- Write issued certificate to immutable blob storage
+- Return certificate metadata and storage URI
 
----
-
-### E. Impact Narrative Workflow
-**Technology:** Microsoft Agent Framework / Foundry  
+### E. Impact narrative workflow
+**Technology:** Microsoft Agent Framework / Foundry via APIM  
 **Responsibilities:**
 - Summarize deterministic impact scope
-- Draft narrative for quality engineer review
-- Never alter authoritative impact data
-- Pause for human review before attachment/finalization
+- Draft narrative for engineer review
+- Preserve human approval gate before attachment/finalization
 
-**Routing requirement:**  
-All model traffic goes through **Azure API Management**.
+## 3. Architecture decisions
 
----
+## ADR-001 — Use Azure SQL Database as system of record for calibration domain
+**Status:** Proposed  
+**Decision:** Store calibrations, readings, impact assessments, dispositions, and certificate metadata in Azure SQL Database.  
+**Rationale:**
+- Strong relational consistency
+- Clear auditability
+- Range joins for impact windows
+- Transactional enforcement of immutable state transitions
 
-### F. Integration Adapters / Caching Layer
-Could be implemented inside the Calibration Service initially, with clear module boundaries for:
-- QMS adapter
-- MES adapter
-- Training records adapter
-
-**Recommendation:** start in-process for Dev unless scale/ownership requires separate services.
-
----
-
-### G. Data Stores
-- **Azure SQL Database**: transactional system of record
-- **Azure Blob Storage**: certificates and evidence, immutable after issue
+**Consequences:**
+- Requires careful indexing for impact and due-list queries
+- Offline sync must reconcile against relational constraints
 
 ---
 
-## 4. Proposed deployment architecture
+## ADR-002 — Keep QMS and MES as external systems of record
+**Status:** Proposed  
+**Decision:** Do not replicate ownership of instrument master, procedures, or measurement history into this solution beyond controlled caching.  
+**Rationale:**
+- Matches stated system boundaries
+- Reduces master-data divergence risk
 
-### Azure services
-- **Azure App Service Premium v3**
-  - Hosts FastAPI calibration service
-  - Zone redundancy in primary region
-- **Azure Functions**
-  - Impact assessment engine
-  - Certificate generation
-- **Azure SQL Database**
-- **Azure Storage Account**
-  - Blob containers with immutability policies
-- **Azure API Management**
-  - Required gateway for model traffic
-- **Microsoft Entra ID**
-- **Application Insights / Azure Monitor**
-- **Key Vault** for secrets/certificates if needed
-
-### Environment recommendation for Dev
-- Single Dev environment with:
-  - lower-cost APIM tier if governance permits
-  - non-production SQL and storage
-  - test integrations or mocks for QMS/MES/training APIs
-- Preserve production-like boundaries even in Dev.
+**Consequences:**
+- Requires resilient integration and cache-age signaling
+- Some workflows degrade to read-only or blocked states during dependency outages
 
 ---
 
-## 5. Domain model recommendation
+## ADR-003 — Enforce as-found immutability at API and database layers
+**Status:** Proposed  
+**Decision:** Once an as-found reading is committed, it cannot be updated in place. Corrections require a governed exception workflow or calibration restart/cancellation policy.  
+**Rationale:**
+- Core compliance rule
+- Prevents UI-only enforcement gaps
 
-## 5.1 Core entities
+**Consequences:**
+- Need explicit UX for mistaken entry handling
+- Need append-only audit events
+
+---
+
+## ADR-004 — Separate deterministic impact scope from AI-generated narrative
+**Status:** Proposed  
+**Decision:** Impact list generation remains deterministic code; AI only drafts explanatory narrative after scope is computed.  
+**Rationale:**
+- Regulatory defensibility
+- Prevents model hallucination from affecting product-impact determination
+
+**Consequences:**
+- Narrative attachment must remain review-gated
+- Prompt inputs must be bounded to approved deterministic data
+
+---
+
+## ADR-005 — Route all model traffic through Azure API Management
+**Status:** Proposed  
+**Decision:** All calls to Microsoft Agent Framework / Foundry go through APIM with managed identity, quotas, safety, and correlation headers.  
+**Rationale:**
+- Required platform constraint
+- Centralized governance and observability
+
+**Consequences:**
+- No direct client-to-model or service-to-model calls
+- APIM policy set becomes part of compliance boundary
+
+---
+
+## ADR-006 — Use offline capture with server-authoritative synchronization
+**Status:** Proposed  
+**Decision:** Client supports offline capture, but server remains authoritative for final state transitions and conflict resolution.  
+**Rationale:**
+- Required for intermittent coverage
+- Protects integrity of calibration records
+
+**Consequences:**
+- Need sync status model
+- Need conflict rules for stale procedures, expired standards, and duplicate submissions
+
+## 4. Domain model
+
+## 4.1 Core entities
 
 ### Instrument
 - instrumentId
-- instrumentTypeId
 - serialNumber
 - description
+- typeCode
 - locationId
 - criticality
 - status
-- calibrationInterval
-- usageBasedIntervalPolicy
-- lastPassingCalibrationId
+- calibrationIntervalDays
+- usageIntervalThreshold
+- lastCalibrationId
 - nextDueDate
-- overdueFlag
+- extensionId nullable
 
 ### CalibrationProcedure
 - procedureId
 - revision
-- instrumentTypeId
-- effectiveDate
+- instrumentTypeCode
+- effectiveFrom
 - status
-- sourceSystemId
-- cachedAt
-
-### ProcedureTestPoint
-- testPointId
-- procedureId
-- sequence
-- nominalValue
-- lowerTolerance
-- upperTolerance
-- unitOfMeasure
-- measuringRangeMin
-- measuringRangeMax
-
-### ReferenceStandard
-- standardId
-- certificateNumber
-- description
-- calibrationValidTo
-- traceabilityRoot
-- status
+- testPoints
+- requiredEnvironmentalFields
 
 ### CalibrationSession
 - calibrationId
 - instrumentId
 - procedureId
 - procedureRevision
-- technicianId
+- startedBy
 - startedAt
-- submittedAt
-- status
+- completedAt
+- status: Draft | InProgress | Submitted | Passed | Failed | Cancelled
 - referenceStandardId
 - environmentalTemperature
 - environmentalHumidity
 - offlineCaptureFlag
-- syncStatus
+- syncState
+- lastPassingCalibrationId
 
 ### CalibrationReading
 - readingId
 - calibrationId
-- testPointId
-- readingType (`AS_FOUND`, `AS_LEFT`)
-- value
-- capturedAt
-- capturedBy
-- lockedAt
-- toleranceResult (`IN_TOLERANCE`, `OUT_OF_TOLERANCE`)
-- immutableHash / version marker
+- testPointSequence
+- nominalValue
+- toleranceMin
+- toleranceMax
+- asFoundValue
+- asFoundCommittedAt
+- asFoundCommittedBy
+- asFoundLocked boolean
+- asLeftValue nullable
+- asLeftCommittedAt nullable
+- resultAsFound: InTolerance | OutOfTolerance
+- resultAsLeft nullable
 
-### CalibrationOutcome
-- calibrationId
-- overallResult (`PASS`, `FAIL`)
-- failReason
-- asFoundFailureFlag
-- asLeftResult
-- evaluatedAt
+### ReferenceStandard
+- referenceStandardId
+- certificateNumber
+- validFrom
+- validTo
+- status
+- traceabilityChainId
 
 ### ImpactAssessment
 - impactAssessmentId
 - calibrationId
-- status (`PENDING`, `RUNNING`, `COMPLETE`, `PARTIAL`, `FAILED_REVIEW_REQUIRED`)
+- triggeredAt
+- status: Pending | Complete | Partial | Reviewed | Closed
 - completenessFlag
-- lastGoodCalibrationId
+- incompleteReason nullable
+- lastPassingCalibrationId
 - measurementWindowStart
 - measurementWindowEnd
-- generatedAt
-- reviewedBy
-- reviewedAt
+- reviewedBy nullable
+- reviewedAt nullable
 
-### ImpactItem
-- impactItemId
+### ImpactedMeasurement
+- impactedMeasurementId
 - impactAssessmentId
 - measurementId
 - workOrderId
 - lotId
 - measuredAt
 - productId
-- dispositionStatus
-- sourceCompletenessFlag
+- characteristicId
+- sourceCompletenessState
 
 ### Certificate
 - certificateId
 - calibrationId
+- certificateNumber
 - issuedBy
 - issuedAt
-- competencyVerifiedAt
 - blobUri
-- blobVersionId / immutable reference
-- certificateNumber
+- blobVersionId
+- immutableRetentionUntil
 - status
 
-### Extension
-- extensionId
-- instrumentId
-- approvedBy
-- justification
-- effectiveAt
-- expiresAt
-- status
+### CompetencyAssertion
+- userId
+- competencyCode
+- validFrom
+- validTo
+- sourceSystem
+- checkedAt
 
 ### AuditEvent
 - auditEventId
-- entityType
-- entityId
-- action
+- aggregateType
+- aggregateId
+- eventType
+- eventAt
 - actorId
-- timestamp
 - correlationId
-- beforeSnapshotRef
-- afterSnapshotRef
+- payloadJson
 
----
+## 4.2 State transitions
 
-## 5.2 Key invariants
+### CalibrationSession
+- Draft -> InProgress
+- InProgress -> Submitted
+- Submitted -> Passed or Failed
+- InProgress -> Cancelled
+- Failed -> ImpactAssessment Pending/Complete/Partial
+- Passed/Failed -> CertificateEligible only if all gating rules pass
 
-1. **As-found readings cannot be edited after commit.**
-2. **As-left readings cannot be entered before as-found is locked.**
-3. **Any out-of-tolerance as-found reading causes calibration failure.**
-4. **Reference standard must be valid at time of use.**
-5. **Certificate issue is blocked if competency cannot be verified.**
-6. **Certificate issue is blocked if impact assessment is partial/incomplete for failed calibration.**
-7. **Procedure cache may support execution, but stale/superseded uncertainty blocks certificate issue.**
-8. **Overdue issue blocking is enforced server-side.**
-9. **AI narrative cannot overwrite deterministic impact data.**
+### Important invariants
+- As-left cannot exist before as-found is locked
+- Failed if any as-found reading is out of tolerance
+- Certificate cannot issue if:
+  - competency check fails
+  - impact assessment is partial or pending where failure exists
+  - procedure revision is stale/unknown
+  - reference standard invalid
+  - required evidence missing
 
----
+## 5. Data model recommendation
 
-## 6. Recommended data architecture
+## 5.1 Relational schema outline
 
-## 6.1 Azure SQL schema domains
-
-Suggested schema grouping:
-
-- `master`
-  - instruments
-  - locations
-  - instrument_types
-  - reference_standards
-- `procedure`
-  - procedures
-  - procedure_test_points
-  - procedure_cache_metadata
-- `calibration`
-  - calibrations
-  - readings
-  - outcomes
-  - environmental_conditions
-- `impact`
-  - assessments
-  - assessment_items
-  - review_notes
-  - narrative_drafts
+### Tables
+- `instrument`
+- `instrument_extension`
+- `procedure_header`
+- `procedure_test_point`
+- `reference_standard`
+- `traceability_chain`
+- `calibration_session`
+- `calibration_reading`
+- `impact_assessment`
+- `impacted_measurement`
+- `impact_disposition`
 - `certificate`
-  - certificates
-  - certificate_events
-- `security`
-  - competency_checks
-  - extensions
-- `audit`
-  - audit_events
-  - outbox_events
-- `sync`
-  - client_sync_batches
-  - sync_conflicts
+- `competency_check_log`
+- `sync_operation`
+- `audit_event`
+- `integration_cache_procedure`
+- `integration_cache_instrument`
 
-## 6.2 Storage recommendations
+## 5.2 Key constraints
+- Unique `(instrument_id, calibration_id, test_point_sequence)` on readings
+- Check constraint: `as_left_value IS NULL OR as_found_locked = 1`
+- Check constraint: `as_found_locked = 1` iff `as_found_committed_at IS NOT NULL`
+- Foreign key from certificate to calibration session
+- Foreign key from impact assessment to failed calibration
+- Non-update policy on `as_found_value` after lock, enforced via stored procedure or service-only write path plus DB trigger/audit
 
-### SQL
-Use SQL for:
-- transactional consistency
-- joins across calibration/test points/readings
-- deterministic impact metadata
-- audit and workflow states
+## 5.3 Index recommendations
+- `instrument(next_due_date, criticality, location_id, status)`
+- `calibration_session(instrument_id, completed_at desc)`
+- `impact_assessment(calibration_id, status)`
+- `impacted_measurement(impact_assessment_id, measured_at)`
+- `audit_event(aggregate_type, aggregate_id, event_at desc)`
 
-### Blob storage
-Use Blob for:
-- issued PDF certificates
-- environmental evidence attachments
-- scanned supporting artifacts if later approved
+## 6. API contract proposal
 
-**Immutability:**  
-Enable immutable blob policies or legal hold equivalent for issued certificates per retention policy.
-
----
-
-## 7. API design proposal
-
-Below is a reviewable contract outline, not final implementation code.
-
-## 7.1 API style
+## 6.1 External API style
 - REST over HTTPS
-- JSON payloads
-- Versioned routes: `/api/v1/...`
-- Idempotency keys for submit/issue operations
-- Correlation IDs on every request/response
+- JSON
+- OAuth2 bearer tokens via Entra ID
+- Correlation ID required
+- Idempotency key required for submit/issue operations
 - Problem Details (`application/problem+json`) for errors
 
----
-
-## 7.2 Core API endpoints
+## 6.2 Core endpoints
 
 ### Due management
-**GET** `/api/v1/instruments/due`
-- Query: `locationId`, `filter`, `page`, `pageSize`
+**GET** `/api/v1/instruments/due?locationId=&filter=&page=`
 - Returns prioritized due/overdue list
-
-**POST** `/api/v1/instruments/{instrumentId}/issue-check`
-- Used by tool crib scan flow
-- Returns `allowed: true/false`, reason, due status, extension status
+- Includes freshness metadata for cached QMS data
 
 **POST** `/api/v1/instruments/{instrumentId}/extensions`
-- Quality manager only
 - Creates documented extension
+- Role-restricted to quality manager
 
----
-
-### Procedure and calibration
-**GET** `/api/v1/instruments/{instrumentId}/procedure`
-- Returns approved/cached procedure and revision metadata
-
+### Calibration workflow
 **POST** `/api/v1/calibrations`
-- Starts calibration session
+- Starts calibration session for scanned instrument
 
-**POST** `/api/v1/calibrations/{calibrationId}/reference-standard`
-- Selects reference standard after validity check
+**GET** `/api/v1/calibrations/{calibrationId}`
+- Returns session, procedure revision, test points, standard eligibility, lock states
 
 **POST** `/api/v1/calibrations/{calibrationId}/environment`
-- Captures temperature/humidity
+- Saves environmental conditions
 
-**POST** `/api/v1/calibrations/{calibrationId}/readings/as-found`
-- Commits one or more as-found readings
-- Locks on successful commit
+**POST** `/api/v1/calibrations/{calibrationId}/readings/{sequence}/as-found`
+- Commits as-found reading
+- Locks reading on success
 
-**POST** `/api/v1/calibrations/{calibrationId}/readings/as-left`
-- Allowed only after corresponding as-found lock
+**POST** `/api/v1/calibrations/{calibrationId}/readings/{sequence}/as-left`
+- Commits as-left reading only if as-found locked
 
 **POST** `/api/v1/calibrations/{calibrationId}/submit`
-- Evaluates outcome and triggers downstream workflows
-
----
+- Evaluates all points and finalizes pass/fail
 
 ### Impact assessment
-**GET** `/api/v1/calibrations/{calibrationId}/impact-assessment`
-- Returns status, completeness, items, review state
+**POST** `/api/v1/calibrations/{calibrationId}/impact-assessments`
+- Triggers deterministic impact assessment for failed calibration
 
-**POST** `/api/v1/calibrations/{calibrationId}/impact-assessment/review`
-- Quality engineer records review/dispositions
+**GET** `/api/v1/impact-assessments/{impactAssessmentId}`
+- Returns scope, completeness state, and review status
 
-**POST** `/api/v1/calibrations/{calibrationId}/impact-assessment/narrative-draft`
-- Triggers agent workflow through APIM
+**POST** `/api/v1/impact-assessments/{impactAssessmentId}/narrative:draft`
+- Requests AI draft through APIM/Agent Framework
 
-**POST** `/api/v1/calibrations/{calibrationId}/impact-assessment/narrative-approve`
-- Human approval required before attachment
-
----
+**POST** `/api/v1/impact-assessments/{impactAssessmentId}/review`
+- Records engineer review and disposition summary
 
 ### Certificate
-**POST** `/api/v1/calibrations/{calibrationId}/certificate/issue`
-- Verifies competency and prerequisites
-- Generates immutable certificate
+**POST** `/api/v1/calibrations/{calibrationId}/certificate:issue`
+- Performs competency check and issues certificate if all gates pass
 
-**GET** `/api/v1/calibrations/{calibrationId}/certificate`
-- Returns metadata and retrieval reference
+**GET** `/api/v1/certificates/{certificateId}`
+- Returns metadata and secure retrieval link
 
----
+### Sync
+**POST** `/api/v1/sync/batch`
+- Uploads offline operations with ordering and idempotency keys
 
-### Offline sync
-**POST** `/api/v1/sync/batches`
-- Uploads queued offline actions
+**GET** `/api/v1/sync/status/{deviceId}`
+- Returns last sync state and unresolved conflicts
 
-**GET** `/api/v1/sync/batches/{batchId}`
-- Returns processing status and conflicts
+## 6.3 Example contracts
 
----
-
-## 7.3 Example contract snippets
-
-### Start calibration request
+### Commit as-found reading request
 ```json
 {
-  "instrumentId": "INS-100245",
-  "clientSessionId": "mob-7f2d-001",
-  "startedAtClient": "2026-08-27T09:15:00Z",
-  "offlineMode": true
+  "value": 10.023,
+  "unit": "mm",
+  "capturedAt": "2026-08-27T10:15:00Z",
+  "deviceId": "HH-204",
+  "offlineCaptured": true
 }
 ```
 
-### As-found reading commit
+### Commit as-found reading response
 ```json
 {
-  "testPointId": "TP-03",
-  "value": 10.014,
-  "unitOfMeasure": "mm",
-  "capturedAtClient": "2026-08-27T09:22:10Z",
-  "idempotencyKey": "af-TP-03-001"
-}
-```
-
-### As-found reading response
-```json
-{
-  "readingId": "RD-88421",
-  "calibrationId": "CAL-22019",
-  "testPointId": "TP-03",
-  "readingType": "AS_FOUND",
-  "value": 10.014,
-  "toleranceResult": "OUT_OF_TOLERANCE",
-  "locked": true,
-  "lockedAt": "2026-08-27T09:22:11Z",
-  "nextAllowedAction": "ENTER_AS_LEFT"
-}
-```
-
-### Issue-check response
-```json
-{
-  "instrumentId": "INS-100245",
-  "allowed": false,
-  "status": "OVERDUE",
-  "dueDate": "2026-08-20",
-  "daysOverdue": 7,
-  "extension": null,
-  "reason": "Instrument is overdue for calibration and cannot be issued."
+  "calibrationId": "CAL-100245",
+  "testPointSequence": 3,
+  "asFoundValue": 10.023,
+  "asFoundLocked": true,
+  "resultAsFound": "OutOfTolerance",
+  "tolerance": {
+    "min": 9.995,
+    "max": 10.005,
+    "unit": "mm"
+  },
+  "nextAllowedAction": "EnterAsLeft"
 }
 ```
 
 ### Impact assessment response
 ```json
 {
-  "impactAssessmentId": "IA-90012",
-  "status": "PARTIAL",
+  "impactAssessmentId": "IA-8821",
+  "calibrationId": "CAL-100245",
+  "status": "Partial",
   "completenessFlag": false,
-  "message": "Measurement history query incomplete after retries; certificate issue remains blocked.",
-  "measurementWindowStart": "2026-05-01T00:00:00Z",
-  "measurementWindowEnd": "2026-08-27T10:05:00Z",
-  "items": [
+  "incompleteReason": "MES measurement history timeout after retries",
+  "measurementWindow": {
+    "start": "2026-05-01T08:00:00Z",
+    "end": "2026-08-27T10:40:00Z"
+  },
+  "impactedMeasurements": [
     {
-      "measurementId": "MEAS-1001",
-      "workOrderId": "WO-7781",
-      "lotId": "LOT-22A"
+      "measurementId": "M-90001",
+      "workOrderId": "WO-1002",
+      "lotId": "LOT-77",
+      "productId": "P-44",
+      "measuredAt": "2026-06-10T11:00:00Z"
     }
-  ]
+  ],
+  "certificateIssueBlocked": true
 }
 ```
 
----
+### Problem details example
+```json
+{
+  "type": "https://example/errors/business-rule-violation",
+  "title": "Certificate issue blocked",
+  "status": 409,
+  "detail": "Impact assessment is incomplete and certificate issue is not permitted.",
+  "instance": "/api/v1/calibrations/CAL-100245/certificate:issue",
+  "correlationId": "7d2d0f5d-0d2e-4d5d-9d8d-1e1d2c3b4a5f"
+}
+```
 
-## 8. Offline-first design recommendation
+## 7. Integration design
+
+## 7.1 Quality Management System
+**Purpose:** instrument master and procedures  
+**Pattern:** synchronous read with bounded cache  
+**Rules:**
+- Cache procedures with revision and retrieval timestamp
+- If live fetch fails after retries, serve cached procedure with age shown
+- Block certificate issue if procedure revision cannot be trusted current
+
+## 7.2 MES measurement history
+**Purpose:** impact assessment source  
+**Pattern:** async function invocation from calibration service  
+**Rules:**
+- 20-second timeout, two retries
+- If exhausted, mark assessment `Partial`
+- Never present partial as complete
+- Block certificate issue while partial/incomplete
+
+## 7.3 Training records competency API
+**Purpose:** certificate issue authorization  
+**Pattern:** synchronous server-side check at issue time  
+**Rules:**
+- No client-side trust
+- Log competency assertion used for issuance
+- Fail closed if competency cannot be verified
+
+## 7.4 Agent workflow via APIM
+**Purpose:** draft impact narrative  
+**Pattern:** service-to-APIM-to-Agent Framework  
+**Rules:**
+- Input only deterministic impact data and approved context
+- Include correlation headers
+- Store draft separately from approved narrative
+- Require human review before attachment/finalization
+
+## 8. Offline and synchronization design
 
 ## 8.1 Offline scope
-Allow offline support for:
-- due list viewing from cached data
-- procedure viewing from cached approved revision
-- calibration session creation
+Recommended offline-capable actions:
+- View cached due list
+- Start calibration from cached procedure/instrument data
+- Capture environmental conditions
+- Commit as-found and as-left locally
+- Queue submit request
+
+Not recommended offline:
+- Certificate issue
+- Final competency validation
+- Final impact assessment completion
+- Any action requiring authoritative external-system freshness
+
+## 8.2 Local storage
+Use encrypted local storage for:
+- Cached procedures
+- In-progress calibration sessions
+- Pending sync operations
+- Device-scoped metadata
+
+Do not store:
+- Long-lived tokens in insecure storage
+- Full unnecessary historical datasets
+- AI drafts unless explicitly needed and protected
+
+## 8.3 Sync model
+Each offline operation should include:
+- operationId
+- deviceId
+- calibrationId
+- sequenceNumber
+- operationType
+- payload
+- capturedAt
+- idempotencyKey
+
+## 8.4 Conflict rules
+1. **Procedure revision changed before sync**
+   - Mark conflict
+   - Require technician/manager review
+   - Block certificate issue until resolved
+
+2. **Reference standard expired before sync**
+   - Mark calibration for review
+   - Do not auto-issue certificate
+
+3. **Duplicate reading submission**
+   - Resolve by idempotency key
+   - Do not create duplicate audit events
+
+4. **Instrument already calibrated elsewhere**
+   - Flag duplicate/inconsistent session
+   - Require manual resolution
+
+## 9. Security architecture
+
+## 9.1 Identity and access
+- Entra ID authentication
+- Conditional access requiring compliant device
+- Role-based access:
+  - Metrology Technician
+  - Quality Engineer
+  - Quality Manager
+  - Production Supervisor
+  - System Admin
+- Competency is separate from role and checked server-side
+
+## 9.2 Authorization model
+Examples:
+- Technician can create and complete calibration sessions
+- Technician cannot issue certificate unless competency valid and role permits
+- Quality manager can grant extensions
+- Quality engineer can review impact assessments
+- Supervisor can view issue-block status
+
+## 9.3 Data protection
+- TLS 1.2+
+- Encryption at rest for SQL and Blob
+- Managed identity for service-to-service auth
+- Immutable blob policies for issued certificates/evidence
+- Minimize PII; store named attribution only where required for compliance
+
+## 9.4 Auditability
+Audit events required for:
+- Calibration start/submit/cancel
+- As-found commit and lock
+- As-left commit
+- Failure determination
+- Impact assessment trigger/result/review
+- Narrative draft request/review/approval
+- Certificate issue
+- Extension grant/expiry
+- Competency check outcome
+
+## 10. Threat model considerations
+
+## 10.1 Key assets
+- Calibration records
+- As-found readings
+- Impact assessment completeness state
+- Certificate artifacts
+- Competency assertions
+- Procedure revision integrity
+- Audit trail
+
+## 10.2 Threats and mitigations
+
+### Tampering with as-found values
+**Threat:** user or attacker alters as-found after commit  
+**Mitigations:**
+- API forbids update
+- DB-level immutability enforcement
+- Append-only audit events
+- Signed correlation and actor attribution in logs
+
+### Using stale or invalid procedure
+**Threat:** offline or cached procedure is superseded  
+**Mitigations:**
+- Cache age shown in UI
+- Procedure revision persisted with calibration
+- Certificate issue blocked if revision trust is uncertain
+
+### Silent incomplete impact assessment
+**Threat:** MES outage yields incomplete scope but UI implies complete  
+**Mitigations:**
+- Explicit `Partial` status
+- Blocking rule on certificate issue
+- UI badges and warning text
+- Audit event for incomplete dependency result
+
+### Unauthorized certificate issue
+**Threat:** user without current competency issues certificate  
+**Mitigations:**
+- Server-side competency check at issue time
+- no client-side override
+- immutable issuance record with named issuer
+
+### Prompt injection or unsafe model output
+**Threat:** untrusted data influences narrative generation  
+**Mitigations:**
+- Treat all source data as untrusted
+- bounded prompt templates
+- APIM safety controls
+- human review before use
+- narrative separated from deterministic impact list
+
+### Offline device compromise
+**Threat:** local queued data altered  
+**Mitigations:**
+- encrypted local storage
+- signed/idempotent operation envelopes where feasible
+- device compliance policy
+- server-side validation of all synced operations
+
+## 11. Non-functional design mapping
+
+## 11.1 Availability
+- App Service Premium v3 with zone redundancy
+- Paired-region warm standby
+- Async functions for long-running impact/certificate tasks
+
+## 11.2 Performance
+Targets inferred from requirements:
+- Due list load: < 3 seconds typical in Dev-like conditions
+- Reading commit: near-real-time feedback, target < 1 second server response
+- Impact assessment: deterministic list generation target within integration SLA; incomplete state surfaced immediately if timeout occurs
+- Certificate generation: target < 30 seconds after all gates pass
+
+## 11.3 Reliability
+- Idempotent submit/issue endpoints
+- Retry with backoff for external dependencies
+- Dead-letter/error handling for async tasks
+- Correlation IDs across all services
+
+## 11.4 Compliance and retention
+- Issued certificates retained 10 years
+- Immutable storage policy on issued artifacts
+- Full audit trail retained per quality/compliance policy
+- Human approval gate preserved for AI narrative
+
+## 11.5 Accessibility and usability
+From UX inputs:
+- Do not rely on color alone
+- Announce tolerance results in text
+- Locked as-found state visibly explained
+- Glove-friendly handheld interactions
+- Explicit offline/freshness indicators
+
+## 12. Observability and operations
+
+## 12.1 Logging
+Log:
+- correlationId
+- userId/service principal
+- deviceId
+- calibrationId
+- impactAssessmentId
+- external dependency latency/outcome
+- APIM model call metadata, excluding sensitive payloads where not needed
+
+## 12.2 Metrics
+- due list response time
+- reading commit latency
+- sync success/failure rate
+- impact assessment completion vs partial rate
+- certificate issue success/block rate
+- competency check failure rate
+- model call count, latency, token/cost metrics via APIM
+
+## 12.3 Alerts
+- spike in partial impact assessments
+- certificate issue failures above threshold
+- QMS or MES dependency degradation
+- sync backlog growth
+- unusual volume of extension grants
+- APIM safety or quota violations
+
+## 13. Implementation plan
+
+## 13.1 Suggested work packages
+
+### WP1 — Foundation
+- Repo structure
+- CI/CD pipelines
+- environment configuration
+- Entra auth integration
+- APIM baseline policies
+- SQL schema baseline
+- Blob storage setup
+
+### WP2 — Due management
+- Instrument/procedure cache
+- due list API
+- overdue marking job
+- extension workflow
+- issue-block API contract
+
+### WP3 — Guided calibration capture
+- calibration session APIs
+- test point rendering contract
+- as-found lock enforcement
+- tolerance evaluation
+- reference standard validity checks
 - environmental capture
-- as-found/as-left reading entry
-- local barcode-assisted workflow
 
-Do **not** allow offline final authority for:
-- certificate issue
-- competency validation
-- final impact completeness confirmation
-- extension approval
+### WP4 — Offline sync
+- local queue model
+- sync batch API
+- conflict detection/resolution flows
+- freshness indicators
 
----
+### WP5 — Impact assessment
+- failed calibration trigger
+- MES query function
+- completeness/partial-state model
+- impact review UI
 
-## 8.2 Sync model
-Use an **append-only action queue** on device:
-- start calibration
-- select standard
-- capture environment
-- commit as-found reading
-- commit as-left reading
-- submit calibration
+### WP6 — AI narrative workflow
+- APIM-routed Agent Framework integration
+- prompt template and bounded input schema
+- draft/review/approval persistence
+- audit events
 
-Each queued action should include:
-- client action ID
-- client timestamp
-- device ID
-- user ID
-- idempotency key
-- prior local state hash/version
+### WP7 — Certificate issuance
+- competency check integration
+- certificate rendering
+- immutable blob write
+- retrieval metadata API
 
----
+### WP8 — Hardening
+- threat mitigation validation
+- performance tests
+- accessibility review
+- disaster recovery rehearsal
+- audit/reporting verification
 
-## 8.3 Conflict strategy
-### As-found readings
-- Never overwrite server-accepted as-found values.
-- If duplicate or conflicting submission occurs:
-  - preserve original accepted value
-  - mark later attempt as conflict
-  - require supervised correction workflow, not silent replacement
+## 13.2 Delivery sequence recommendation
+1. Foundation
+2. Due list + scheduling controls
+3. Guided capture + immutability
+4. Offline sync
+5. Impact assessment deterministic engine
+6. Certificate issuance
+7. AI narrative workflow
+8. Hardening and UAT
 
-### Procedure revisions
-- If offline procedure revision is stale:
-  - calibration may sync as captured against cached revision
-  - certificate issue blocked pending review if revision supersession risk exists
+## 14. Testing strategy
 
-### Reference standard validity
-- If standard was believed valid offline but server determines invalid at effective time:
-  - calibration flagged for review/failure path
-  - certificate issue blocked
-
----
-
-## 9. Integration architecture
-
-## 9.1 QMS integration
-**Purpose:** instrument master, procedures  
-**Pattern:** REST pull with cache  
-**Failure behavior:** use cached procedure with age marker; block certificate issue if supersession uncertainty exists
-
-**Recommendation:**
-- Cache procedure revision and effective date
-- Store source ETag/version if available
-- Record cache age in API response and audit trail
-
----
-
-## 9.2 MES integration
-**Purpose:** measurement history for impact assessment  
-**Pattern:** REST query by instrument and date range  
-**Failure behavior:** if retries exhausted, mark impact assessment partial/incomplete and block certificate issue
-
-**Recommendation:**
-- Persist raw query metadata and response completeness markers
-- Support resumable/retryable impact jobs
-
----
-
-## 9.3 Training records integration
-**Purpose:** competency verification for certificate issue  
-**Pattern:** synchronous check at issue time, optionally cached short-term  
-**Failure behavior:** fail closed; no competency confirmation means no certificate issue
-
----
-
-## 10. AI/agent architecture recommendation
-
-## 10.1 Allowed AI role
-AI may:
-- summarize deterministic impact scope
-- draft assessment narrative
-- assist engineer review
-
-AI may not:
-- determine impact scope
-- change calibration outcome
-- approve certificate issue
-- override competency or completeness checks
-
----
-
-## 10.2 Agent workflow pattern
-1. Calibration fails due to as-found out-of-tolerance.
-2. Impact engine computes deterministic impact list.
-3. Calibration service sends approved structured summary to APIM.
-4. APIM routes to Foundry/Microsoft Agent Framework.
-5. Agent returns draft narrative.
-6. Narrative stored as draft only.
-7. Quality engineer reviews/edits/approves.
-8. Approved narrative attached to assessment.
-
----
-
-## 10.3 APIM policy recommendations
-- Managed identity authentication
-- Per-user/per-app quotas
-- Correlation headers
-- Content safety checks
-- Request/response logging with sensitive-field redaction
-- Model allowlist
-- Payload size limits
-- Explicit route segregation for narrative drafting only
-
----
-
-## 11. Security architecture
-
-## 11.1 Identity and access
-Use **Microsoft Entra ID** with:
-- conditional access
-- Intune-compliant device requirement where mandated
-- role-based authorization plus domain policy checks
-
-### Suggested roles
-- Technician
-- Production Supervisor
-- Quality Engineer
-- Quality Manager
-- System Administrator
-- Auditor (read-only)
-
-### Fine-grained policy examples
-- Only Quality Manager can approve extension
-- Only competent named person can issue certificate
-- Technician can capture calibration but not alter locked as-found values
-- Quality Engineer can review impact and approve narrative, but not bypass completeness block
-
----
-
-## 11.2 Data protection
-- TLS in transit
-- TDE for SQL at rest
-- Storage encryption at rest
-- Key Vault-backed secrets
-- PII minimization in logs
-- Immutable storage for issued certificates
-- Audit trail for all privileged actions
-
----
-
-## 11.3 Auditability
-Audit events should capture:
-- who
-- what
-- when
-- from which device/session
-- before/after state where appropriate
-- correlation ID across API, function, and agent calls
-
-Critical audited actions:
-- extension approval
-- as-found commit
-- calibration submit
-- impact review
-- narrative approval
-- certificate issue
-- failed competency check
+## 14.1 Unit tests
+- tolerance evaluation
+- as-found lock rules
+- certificate gating logic
+- completeness-state logic
 - sync conflict resolution
 
----
-
-## 12. Threat model considerations
-
-Below is a reviewable STRIDE-oriented summary.
-
-## 12.1 Spoofing
-**Threats**
-- Unauthorized user impersonates competent issuer
-- Shared device misuse on shop floor
-
-**Mitigations**
-- Entra ID authentication
-- conditional access / compliant device checks
-- short session lifetime on handhelds
-- server-side competency verification at issue time
-- named-user attribution in audit logs
-
----
-
-## 12.2 Tampering
-**Threats**
-- Modification of as-found readings after capture
-- Alteration of issued certificates
-- Manipulation of offline sync payloads
-
-**Mitigations**
-- immutable state transition for as-found
-- append-only audit trail
-- idempotency keys and server validation
-- blob immutability/versioning
-- signed or integrity-checked sync payload metadata
-- server-side recalculation of tolerance and outcome
-
----
-
-## 12.3 Repudiation
-**Threats**
-- User denies issuing certificate or approving extension
-
-**Mitigations**
-- attributable identity
-- timestamped audit events
-- correlation IDs
-- competency verification record at issue time
-- immutable certificate event log
-
----
-
-## 12.4 Information disclosure
-**Threats**
-- Exposure of product/lot impact data
-- Leakage of model prompts/responses containing sensitive operational data
-
-**Mitigations**
-- role-based access
-- APIM redaction/logging controls
-- least-privilege data access
-- avoid unnecessary sensitive fields in AI prompts
-- segregated storage and access policies
-
----
-
-## 12.5 Denial of service
-**Threats**
-- MES or QMS outage blocks operations
-- excessive model usage or API abuse
-
-**Mitigations**
-- cached procedures for continuity
-- explicit degraded modes
-- retries with backoff
-- APIM quotas/rate limits
-- async impact processing
-- warm standby architecture
-
----
-
-## 12.6 Elevation of privilege
-**Threats**
-- Technician gains extension approval or certificate issue capability
-- client-side role manipulation
-
-**Mitigations**
-- server-side authorization only
-- role claims plus policy checks
-- no trust in client role presentation
-- privileged action revalidation
-
----
-
-## 13. Architecture decision records
-
-## ADR-001: Use Azure SQL Database as primary system of record
-**Status:** Proposed  
-**Decision:** Store calibration records, readings, impact metadata, and certificate metadata in Azure SQL.  
-**Rationale:** Strong consistency, relational joins, transactional integrity, auditability.  
-**Consequences:** Requires schema governance and migration discipline; less flexible than document-first storage.
-
----
-
-## ADR-002: Keep deterministic impact assessment separate from AI narrative generation
-**Status:** Proposed  
-**Decision:** Impact list is computed by deterministic service logic; AI only drafts narrative.  
-**Rationale:** Regulatory/audit integrity and requirement that impact assessment must never be silently incomplete.  
-**Consequences:** Two-step workflow; human review remains mandatory.
-
----
-
-## ADR-003: Enforce as-found immutability in the domain API and database model
-**Status:** Proposed  
-**Decision:** As-found commits become locked records and cannot be edited in place.  
-**Rationale:** Core business rule and audit requirement.  
-**Consequences:** Correction requires exception workflow, not update-in-place.
-
----
-
-## ADR-004: Use Azure Functions for impact and certificate workloads
-**Status:** Proposed  
-**Decision:** Implement impact assessment and certificate generation as separate function-based workloads.  
-**Rationale:** Natural fit for asynchronous/background processing and workload isolation.  
-**Consequences:** Requires orchestration, observability, and retry design.
-
----
-
-## ADR-005: Support offline capture with append-only sync actions
-**Status:** Proposed  
-**Decision:** Client stores queued actions and syncs to server with idempotency keys.  
-**Rationale:** Intermittent connectivity is a stated requirement; append-only aligns with immutable record rules.  
-**Consequences:** Conflict handling and reconciliation complexity increase.
-
----
-
-## ADR-006: Block certificate issue on incomplete impact, stale procedure uncertainty, or failed competency verification
-**Status:** Proposed  
-**Decision:** Fail closed for certificate issue.  
-**Rationale:** Matches technical constraints and quality/compliance posture.  
-**Consequences:** More operational escalations, but safer compliance behavior.
-
----
-
-## ADR-007: Route all model traffic through Azure API Management
-**Status:** Proposed  
-**Decision:** No direct client or service calls to model endpoints.  
-**Rationale:** Governance, observability, quotas, safety, and stated platform constraint.  
-**Consequences:** APIM becomes a critical dependency for AI-assisted features.
-
----
-
-## 14. Sequence flows
-
-## 14.1 Guided calibration happy path
-1. Technician scans instrument.
-2. Client requests issue/procedure status.
-3. Service validates instrument status and returns procedure.
-4. Technician selects valid reference standard.
-5. Technician records environment.
-6. Technician enters as-found reading for each test point.
-7. Service locks each as-found reading on commit and evaluates tolerance.
-8. Technician enters as-left readings.
-9. Technician submits calibration.
-10. Service computes final outcome.
-11. If pass and competency later verified, certificate may be issued.
-12. Certificate generator renders and stores immutable certificate.
-
----
-
-## 14.2 Failed calibration with impact workflow
-1. As-found reading is out of tolerance.
-2. Service marks calibration failed.
-3. Impact engine starts using last passing calibration date.
-4. MES queried for measurement history.
-5. Impact list persisted with completeness status.
-6. If complete, quality engineer reviews.
-7. Narrative draft requested through APIM to Foundry.
-8. Engineer approves/edits narrative.
-9. Certificate remains blocked until required review gates are satisfied.
-
----
-
-## 15. Non-functional design recommendations
-
-## 15.1 Availability and resilience
-- Use retries with backoff for QMS/MES/training integrations
-- Surface degraded mode explicitly in UI
-- Never hide partial impact state
-- Use async jobs for long-running impact queries
-- Warm standby in paired region for production target later
-
-## 15.2 Performance
-Suggested initial targets for review:
-- Due list load: < 2 seconds for normal page
-- Procedure fetch from cache: < 1 second
-- As-found commit: < 500 ms typical
-- Impact assessment initiation: < 2 seconds
-- Impact completion: dependent on MES, but status visible immediately
-- Certificate generation: < 30 seconds typical
-
-## 15.3 Observability
-- Distributed tracing across client/API/functions/APIM/agent workflow
-- Business metrics:
-  - overdue instrument count
-  - failed calibrations
-  - impact completion time
-  - certificate issue success/failure reasons
-  - sync conflict rate
-- Security metrics:
-  - failed authorization attempts
-  - competency check failures
-  - APIM quota/safety events
-
----
-
-## 16. Implementation plan
-
-## Phase 1 — Foundation
-- Establish repo structure and CI/CD
-- Provision Dev infrastructure
-- Set up Entra ID auth and role model
-- Create SQL schema baseline
-- Create storage containers and immutability approach
-- Implement observability baseline
-- Define API versioning and error standards
-
-## Phase 2 — Core calibration domain
-- Instrument due list
-- Issue-block API
-- Procedure retrieval/cache
-- Calibration session lifecycle
-- Reference standard validation
-- Environmental capture
-- As-found/as-left reading APIs
-- Tolerance evaluation
-- Audit logging
-
-## Phase 3 — Offline support
-- Client local store and sync queue
-- Idempotent sync ingestion
-- Conflict detection and operator-visible errors
-- Cached procedure and due list behavior
-
-## Phase 4 — Impact assessment
-- Last passing calibration logic
-- MES integration adapter
-- Impact engine and persistence
-- Partial/incomplete handling
-- Quality engineer review UI/API
-
-## Phase 5 — Certificate and traceability
-- Competency integration
-- Certificate rendering
-- Immutable blob storage
-- Traceability chain presentation
-- Certificate issue gating
-
-## Phase 6 — AI-assisted narrative
-- APIM route and policies
-- Agent workflow integration
-- Draft storage
-- Human approval workflow
-- Prompt/data minimization review
-
-## Phase 7 — Hardening and validation
-- Security testing
-- offline/sync testing
-- audit trail verification
-- resilience/failure-mode testing
-- UAT with metrology and quality users
-
----
-
-## 17. Suggested backlog for technical design
-
-1. Define calibration state machine.
-2. Define immutable reading persistence model.
-3. Define sync action schema and idempotency strategy.
-4. Define QMS procedure cache policy and stale-data rules.
-5. Define MES impact query contract and completeness semantics.
-6. Define competency check contract and fail-closed behavior.
-7. Define certificate template data contract.
-8. Define audit event taxonomy.
-9. Define APIM policies for model traffic.
-10. Define exception workflow for erroneous as-found entry.
-11. Define retention and immutability settings for certificates/evidence.
-12. Define role/permission matrix.
-
----
-
-## 18. Open questions / approval items
-
-These should be resolved before implementation approval:
-
-1. **Tool crib integration boundary:**  
-   Is issue blocking enforced through this app only, or must it integrate with an existing crib/issuance system?
-
-2. **Usage-based scheduling details:**  
-   What exact usage signals and formulas govern next-due calculation?
-
-3. **Procedure supersession rule:**  
-   Can a calibration started offline against cached revision complete if a newer revision became effective before sync?
-
-4. **As-found correction workflow:**  
-   What approved exception process applies to mistaken entries if edits are prohibited?
-
-5. **Impact disposition scope:**  
-   What exact disposition fields are recorded by quality, and in which system is final product disposition authoritative?
-
-6. **Certificate numbering scheme:**  
-   Is numbering generated locally, centrally, or from QMS?
-
-7. **Traceability chain depth:**  
-   How much of the reference-standard chain must appear on the certificate versus remain retrievable from record?
-
-8. **Retention policy details:**  
-   The technical document states 10 years for certificates; does the same retention apply to readings, impact assessments, and audit logs?
-
-9. **Training records SLA and cache tolerance:**  
-   Is any temporary cache acceptable for competency checks, or must every issue action call live data?
-
-10. **Dev integration mode:**  
-   Are real Dev endpoints available for QMS/MES/training, or are mocks required initially?
-
----
-
-## 19. Review recommendation
-
-**Recommendation:** Approve this as the **baseline design direction**, subject to resolution of the open questions above and formal sign-off from:
-- Business owner
-- Quality/Metrology owner
-- Technical owner
-- Security/Compliance owner
-- UX representative
-
----
-
-## 20. Reviewable summary
-
-This proposal is fit for review because it:
-- translates requirements into a concrete architecture
-- preserves the stated compliance constraints
-- defines bounded AI usage through Microsoft Agent Framework and APIM
-- proposes data and API contracts
-- includes threat-model considerations
-- provides an implementable phased plan
-
-If you want, I can next convert this into any of these formats:
-1. **Formal ADR document set**
-2. **Detailed API contract spec**
-3. **SQL schema draft**
-4. **C4 architecture description**
-5. **Implementation work breakdown with epics/stories/tasks**
+## 14.2 Integration tests
+- QMS cache fallback
+- MES timeout -> partial impact state
+- training records competency enforcement
+- blob immutability write path
+- APIM-routed agent invocation
+
+## 14.3 End-to-end tests
+- due instrument to passed certificate
+- failed calibration to partial impact block
+- failed calibration to reviewed impact and certificate issue
+- offline capture then sync
+- stale procedure conflict handling
+
+## 14.4 Security tests
+- authorization matrix
+- token misuse
+- tamper attempts on locked readings
+- prompt injection resilience
+- local storage exposure review
+
+## 15. Open design questions for review
+
+1. **Offline issue-block policy:** requirements note this as TBD. Can any offline instrument issue ever be allowed?
+2. **Mistaken as-found entry workflow:** should correction require cancellation and restart, or a governed exception process?
+3. **Usage-based scheduling source:** where exactly does usage telemetry originate, and what is its update cadence?
+4. **Procedure cache tolerance:** what maximum cache age is acceptable before calibration start is blocked?
+5. **Certificate numbering scheme:** generated internally or allocated from an external quality system?
+6. **Environmental evidence:** are photos/files required, or only numeric readings?
+7. **Impact disposition granularity:** measurement-level, lot-level, work-order-level, or all three?
+8. **Warm standby expectations in Dev:** full paired-region deployment in Dev, or production-only pattern documented now?
+
+## 16. Review recommendation
+
+This design is **architecturally viable** and aligned with the provided requirements and technical constraints, with the strongest aspects being:
+
+- clear system-of-record boundaries
+- deterministic compliance-critical logic
+- explicit incomplete-state handling
+- strong auditability and competency gating
+- governed AI usage through APIM and human review
+
+## 17. Proposed approval outcome
+
+**Recommend conditional approval for detailed design / implementation planning**, subject to resolution of the open questions above, especially:
+
+- offline issue policy
+- as-found correction workflow
+- procedure cache-age policy
+- exact competency and certificate numbering rules
+
+If helpful, I can next convert this into:
+1. a **formal ADR set**,  
+2. a **C4-style component/spec package**, or  
+3. a **developer-ready backlog with architecture acceptance criteria**.
