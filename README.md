@@ -145,7 +145,7 @@ these repository secrets and variables first:
 | Compliance API | <https://equipment-calibration-compliance-api.azurewebsites.net/api/compliances> |
 | API health probe | <https://equipment-calibration-compliance-api.azurewebsites.net/health> |
 
-_Published and verified 2026-08-27 17:26 UTC by the Agentic SDLC DevOps & Release Agent via `deploy-azure.yml`. Smoke tests covered the health probe, Swagger/OpenAPI, the UI, and a create/update/delete round trip._
+_Published and verified 2026-08-28 17:39 UTC by the Agentic SDLC DevOps & Release Agent via `deploy-azure.yml`. Smoke tests covered the health probe, Swagger/OpenAPI, the UI, and a create/update/delete round trip._
 <!-- agentic-sdlc:published-links:end -->
 
 ## Requirements scope
