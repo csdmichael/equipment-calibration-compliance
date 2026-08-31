@@ -1,147 +1,184 @@
-**Equipment Calibration Compliance – Plan Stage Proposal (Reviewable Draft)**
+# Equipment Calibration Compliance – Plan Stage Proposal
+
+## 1. Overview
+
+**Project Name:** Equipment Calibration Compliance  
+**Environment:** Dev  
+**Business Outcome:**  
+- Scheduled, guided calibration captured on handheld devices  
+- Automatic impact assessment when an instrument fails  
+- Certificate issued from the record, not manually transcribed  
+- Unbroken traceability chain to reference standards
 
 ---
 
-## 1. Epic
+## 2. Traceable Epics, Features, User Stories
 
-**EPIC-01: Equipment Calibration Compliance**  
-*As a quality and metrology organisation, we need calibrations scheduled, performed and recorded on a handheld with automatic impact assessment when an instrument fails, so that no instrument is used out of calibration and the effect of any failure is known immediately.*
+### Epic: Equipment Calibration Compliance (EPIC-01)
+**Outcome:**  
+As a quality and metrology organization, calibrations are scheduled, performed, and recorded on a handheld with automatic impact assessment when an instrument fails, ensuring no instrument is used out of calibration and the effect of any failure is known immediately.
+
+**Business Owner:** Head of Quality Assurance
 
 ---
 
-## 2. Features & User Stories
+### Feature 1: Calibration Scheduling and Due Management (FEAT-01)
+**Description:**  
+Maintains calibration schedule from interval and usage, shows due/overdue status by instrument/location, prevents overdue instruments from being used.
+
+#### User Stories
+- **US-101:**  
+  As a metrology technician, I want to see instruments due for calibration ranked by due date and criticality, so I work the schedule in the order that protects product quality.
+  - **Acceptance Criteria:**
+    - Instruments sorted by days to due and criticality
+    - Each row shows instrument, location, interval, last calibration date
+    - Overdue instruments flagged; owner and quality manager notified
+
+- **US-102:**  
+  As a production supervisor, I want an overdue instrument blocked from being drawn for use, so measurements are never taken with an uncalibrated device.
+  - **Acceptance Criteria:**
+    - Overdue instrument blocked at tool crib; reason and due date shown
+    - Extension can be granted with expiry, justification, approver identity
+
+---
+
+### Feature 2: Guided Calibration Capture (FEAT-02)
+**Description:**  
+Presents calibration procedure for instrument type, captures as-found/as-left readings at each test point, evaluates against tolerance.
+
+#### User Stories
+- **US-201:**  
+  As a metrology technician, I want the test points and tolerances for this instrument presented in order, so I follow the approved procedure.
+  - **Acceptance Criteria:**
+    - Procedure, revision, test points, tolerance, reference standard shown
+    - Reference standard out of calibration blocks procedure
+
+- **US-202:**  
+  As a quality engineer, I want as-found readings captured before any adjustment, so the condition during production use is recorded honestly.
+  - **Acceptance Criteria:**
+    - As-found values locked before as-left entry
+    - Out-of-tolerance as-found flags calibration as failure
+
+---
+
+### Feature 3: Out-of-Tolerance Impact Assessment (FEAT-03)
+**Description:**  
+When an instrument is found out of tolerance, produces the list of measurements taken with it since last passing calibration for quality team review.
+
+#### User Stories
+- **US-301:**  
+  As a quality engineer, I want an immediate impact list when an instrument fails, so affected product can be assessed.
+  - **Acceptance Criteria:**
+    - Impact list generated within 10 minutes
+    - List includes all measurements since last passing calibration
+    - Partial/incomplete lists are explicitly labelled
+
+---
+
+### Feature 4: Certificate Generation and Traceability (FEAT-04)
+**Description:**  
+Generates certificates from the calibration record, ensures reference standard traceability, stores certificates immutably.
+
+#### User Stories
+- **US-401:**  
+  As a metrology technician, I want certificates issued from the record, so traceability is provable and manual transcription is eliminated.
+  - **Acceptance Criteria:**
+    - Certificate generated from stored calibration record
+    - Reference standard chain recorded and provable
+    - Certificate stored in immutable blob storage
+
+---
+
+## 3. Tasks
 
 ### FEAT-01: Calibration Scheduling and Due Management
-
-| User Story | Description | Acceptance Criteria | Priority |
-|------------|-------------|--------------------|----------|
-| US-101 | As a metrology technician, I want to see instruments due for calibration ranked by due date and criticality, so that I work the schedule in the order that protects product quality. | - Instruments are sorted by days to due and criticality.<br>- Each row shows instrument, location, interval, last calibration date.<br>- Overdue instruments are flagged; notifications sent to owner and quality manager. | Must |
-| US-102 | As a production supervisor, I want an overdue instrument blocked from being drawn for use, so that measurements are never taken with an uncalibrated device. | - Overdue instrument cannot be issued; reason and due date shown.<br>- Extensions require expiry, justification, and approver identity. | Must |
-
----
+- Integrate with quality management system for instrument master data
+- Implement due/overdue calculation logic
+- Build notification workflow for overdue instruments
+- Develop tool crib blocking logic and extension workflow
 
 ### FEAT-02: Guided Calibration Capture
-
-| User Story | Description | Acceptance Criteria | Priority |
-|------------|-------------|--------------------|----------|
-| US-201 | As a metrology technician, I want the test points and tolerances for this instrument presented in order, so that I follow the approved procedure rather than working from memory. | - Procedure, revision, test points, and tolerances shown in sequence.<br>- Reference standard validity enforced; cannot proceed with expired standard. | Must |
-| US-202 | As a quality engineer, I want as-found readings captured before any adjustment, so that the condition the instrument was in during production use is recorded honestly. | - As-found values locked before as-left can be entered.<br>- Out-of-tolerance as-found flags calibration as failure. | Must |
-
----
+- Implement procedure presentation per instrument type
+- Reference standard selection and validity check
+- As-found/as-left entry and locking logic
+- Tolerance evaluation and failure flagging
 
 ### FEAT-03: Out-of-Tolerance Impact Assessment
-
-| User Story | Description | Acceptance Criteria | Priority |
-|------------|-------------|--------------------|----------|
-| US-301 | As a quality engineer, I want to see all measurements taken with a failed instrument since its last passing calibration, so I can assess product impact. | - List is generated deterministically from measurement history.<br>- Partial results are flagged as incomplete if source system is unavailable.<br>- Certificate issue is blocked until assessment is reviewed and closed. | Must |
-
----
+- Integrate with manufacturing execution system for measurement history
+- Build impact assessment engine (Azure Functions)
+- Implement partial/incomplete impact list handling
+- Develop engineer review workflow (Foundry agent)
 
 ### FEAT-04: Certificate Generation and Traceability
-
-| User Story | Description | Acceptance Criteria | Priority |
-|------------|-------------|--------------------|----------|
-| US-401 | As a metrology technician, I want to generate and issue a calibration certificate directly from the record, so that the traceability chain is unbroken and auditable. | - Certificate generated from stored calibration record.<br>- Reference standard chain included.<br>- Certificate is immutable and stored in Azure Blob for 10 years.<br>- Issue is competency-gated and attributable. | Must |
-
----
-
-## 3. Tasks (Sample, per Feature)
-
-### FEAT-01: Calibration Scheduling and Due Management
-
-- Design and implement due/overdue list UI (SCR-01).
-- Integrate with quality management system for instrument master data.
-- Implement notification logic for overdue instruments.
-- Enforce blocking logic at tool crib (integration with MES/tool crib system).
-- Extension workflow (approval, expiry, justification capture).
-
-### FEAT-02: Guided Calibration Capture
-
-- Guided procedure UI (SCR-02).
-- Reference standard selection and validity check.
-- As-found/as-left entry with locking and validation.
-- Tolerance evaluation logic.
-- Offline capture and sync logic.
-
-### FEAT-03: Out-of-Tolerance Impact Assessment
-
-- Impact assessment engine integration (Azure Functions).
-- Measurement history query and result presentation.
-- Partial result handling and certificate block logic.
-- Foundry agent workflow for narrative draft and review.
-
-### FEAT-04: Certificate Generation and Traceability
-
-- Certificate rendering from calibration record.
-- Reference standard chain inclusion.
-- Blob storage integration for immutable certificate storage.
-- Competency check via training records API.
-- Certificate issue logging and audit trail.
+- Certificate rendering from calibration record
+- Reference standard chain validation
+- Blob storage integration for immutable certificate storage
 
 ---
 
-## 4. Acceptance Criteria (Traceable)
+## 4. Acceptance Criteria (Summary Table)
 
-- All user stories’ acceptance criteria are mapped to UI elements and backend logic.
-- UX mockups (SCR-01 to SCR-04) are referenced for UI/interaction validation.
-- Technical requirements (API, storage, identity, offline, etc.) are mapped to tasks and test cases.
-- Non-functional requirements (NFRs) such as offline support, accessibility, and auditability are explicitly covered.
+| Feature | User Story | Acceptance Criteria |
+|---------|------------|--------------------|
+| FEAT-01 | US-101     | Sorted due list, overdue notification |
+| FEAT-01 | US-102     | Tool crib block, extension workflow   |
+| FEAT-02 | US-201     | Procedure/tolerance display, standard validity |
+| FEAT-02 | US-202     | As-found lock, failure flag           |
+| FEAT-03 | US-301     | Impact list within 10 min, completeness label |
+| FEAT-04 | US-401     | Certificate from record, traceability, immutable storage |
 
 ---
 
 ## 5. Dependencies
 
-- Integration with Quality Management System (instrument master, procedures).
-- Integration with Manufacturing Execution System (measurement history).
-- Integration with Training Records System (competency check).
-- Azure SQL Database and Blob Storage provisioning.
-- Microsoft Foundry agent workflow and APIM configuration.
-- Device management (Intune compliance for calibration devices).
-- GitHub Actions for CI/CD.
+- **Quality Management System:** Instrument master data, procedures
+- **Manufacturing Execution System:** Measurement history for impact assessment
+- **Training Records System:** Calibration competency validation
+- **Azure SQL Database:** Calibration records, test points, readings, certificates
+- **Azure Blob Storage:** Certificate and environmental evidence storage
+- **Microsoft Foundry Agent Framework:** Impact narrative workflow
+- **Azure API Management:** Model traffic routing, authentication
 
 ---
 
 ## 6. Risks
 
-| Risk | Impact | Mitigation |
-|------|--------|------------|
-| Source system unavailability (QMS, MES) | Incomplete data, blocked certificate issue | Implement retry/backoff, explicit partial/incomplete state, cache with age warning |
-| Offline capture sync failures | Data loss or delayed compliance | Service worker with robust sync logic, user feedback on sync state |
-| Competency data not up-to-date | Unqualified certificate issue | Server-side check at issue time, audit log, fallback to manual override with justification |
-| Reference standard out of calibration | Invalid calibration | Enforce selection logic, block calibration, clear error messaging |
-| Accessibility non-compliance | Exclusion of users, audit findings | Follow UX accessibility specs, test with assistive tech, WCAG 2.1 AA compliance |
-| Immutable storage misconfiguration | Certificate loss or alteration | Automated tests for storage configuration, periodic audit of Blob immutability |
+| Risk | Mitigation |
+|------|------------|
+| Instrument master/procedure API unavailable | Serve cached procedure, block certificate issue |
+| Measurement history API timeout | Present partial impact list, block certificate issue |
+| Reference standard out of calibration | Block calibration, state reason |
+| As-found readings not locked | Explicit boundary enforcement, test coverage |
+| Certificate issue without competency | Server-side competency check, audit trail |
+| Blob storage write failure | Retry logic, alert, block certificate issue |
+| Offline capture sync failure | Service worker, retry on reconnection |
 
 ---
 
-## 7. Traceability Matrix (Sample)
+## 7. Non-Functional Requirements (NFRs)
 
-| Requirement/User Story | Feature | UX Mockup | Technical Requirement | Acceptance Criteria |
-|-----------------------|---------|-----------|----------------------|--------------------|
-| US-101                | FEAT-01 | SCR-01    | QMS integration, UI  | Due/overdue list, notification |
-| US-201                | FEAT-02 | SCR-02    | Procedure API, UI    | Guided capture, as-found lock |
-| US-301                | FEAT-03 | SCR-03    | MES integration, agent workflow | Impact list, partial handling |
-| US-401                | FEAT-04 | SCR-04    | Blob storage, competency API | Certificate, traceability, immutability |
-
----
-
-## 8. Approval Gates
-
-- **Business owner sign-off** on feature set and priorities.
-- **UX review** for accessibility and workflow.
-- **Technical architecture review** for integration and security.
-- **Data protection review** for certificate storage and auditability.
+- **Availability:** Laboratory-hours, zone redundancy, warm standby
+- **Security:** Entra ID, conditional access, managed identity, competency gating
+- **Immutability:** As-found readings and certificates cannot be altered post-issue
+- **Accessibility:** All critical states and actions are accessible via text, not color alone
+- **Offline Support:** Service worker for shop floor/lab intermittent coverage
+- **Auditability:** All calibration, impact, and certificate actions are logged
 
 ---
 
-## 9. Next Steps
+## 8. UX Inputs (Mapped to Features)
 
-- Review and approve this proposal.
-- Decompose features into sprint-ready stories and tasks.
-- Confirm integration points and test data.
-- Schedule UX walkthrough and technical architecture review.
+| Screen | Feature | Key UX Elements |
+|--------|---------|-----------------|
+| SCR-01 Calibration Due List | FEAT-01 | Filter chips, instrument rows, overdue badge, extension indicator |
+| SCR-02 Guided Calibration Capture | FEAT-02 | Standard selector, environmental conditions, test point entry, as-found lock |
+| SCR-03 Out-of-Tolerance Impact | FEAT-03 | Impact list, disposition recording |
+| SCR-04 Certificate and Traceability | FEAT-04 | Certificate issue, traceability chain |
 
 ---
 
-**End of Plan Stage Proposal**  
-*All content traceable to approved requirements, technical constraints, and UX mockups. Awaiting review and approval before decomposition and implementation.*
+## 9. Proposal Summary
+
+This plan stage proposal delivers a traceable requirements structure for the Equipment Calibration Compliance project, mapping approved business and UX inputs to epics, features, user stories, tasks, acceptance criteria, dependencies, and risks. All integrations, gating, and immutability requirements are explicitly addressed. Human approval gates are preserved for impact assessment narrative and certificate issue. No external system changes are claimed; all data and content are treated as untrusted until verified.
+
+**Ready for review and approval.**
