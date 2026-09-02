@@ -1,184 +1,138 @@
-# Equipment Calibration Compliance – Plan Stage Proposal
+# Requirements Agent — Plan-Stage Proposal (Revision: Add Help and FAQ Pages)
 
-## 1. Overview
-
-**Project Name:** Equipment Calibration Compliance  
-**Environment:** Dev  
-**Business Outcome:**  
-- Scheduled, guided calibration captured on handheld devices  
-- Automatic impact assessment when an instrument fails  
-- Certificate issued from the record, not manually transcribed  
-- Unbroken traceability chain to reference standards
+**Project:** Equipment Calibration Compliance  
+**Target environment:** Dev  
+**Plan status:** Proposed for review; not approved for implementation  
+**Revision context:** Human instructions to add a Help page and FAQ page to workflow run 4e7cc372-2e60-4d32-8e8d-8df9291ff84c.
 
 ---
 
-## 2. Traceable Epics, Features, User Stories
+## 1. Executive Summary
 
-### Epic: Equipment Calibration Compliance (EPIC-01)
-**Outcome:**  
-As a quality and metrology organization, calibrations are scheduled, performed, and recorded on a handheld with automatic impact assessment when an instrument fails, ensuring no instrument is used out of calibration and the effect of any failure is known immediately.
-
-**Business Owner:** Head of Quality Assurance
+This revision proposes the addition of a Help page and FAQ page to the Equipment Calibration Compliance application, ensuring users can access guidance and answers to common questions directly within the system. These pages will support technicians, supervisors, and quality engineers in understanding workflows, troubleshooting issues, and complying with calibration requirements.
 
 ---
 
-### Feature 1: Calibration Scheduling and Due Management (FEAT-01)
-**Description:**  
-Maintains calibration schedule from interval and usage, shows due/overdue status by instrument/location, prevents overdue instruments from being used.
+## 2. Scope Update
 
-#### User Stories
-- **US-101:**  
-  As a metrology technician, I want to see instruments due for calibration ranked by due date and criticality, so I work the schedule in the order that protects product quality.
-  - **Acceptance Criteria:**
-    - Instruments sorted by days to due and criticality
-    - Each row shows instrument, location, interval, last calibration date
-    - Overdue instruments flagged; owner and quality manager notified
+### In Scope (added items)
+- Help page: Context-sensitive guidance for application features and workflows.
+- FAQ page: Answers to common questions about calibration compliance, procedures, impact assessment, certificate generation, offline capture, and system integrations.
 
-- **US-102:**  
-  As a production supervisor, I want an overdue instrument blocked from being drawn for use, so measurements are never taken with an uncalibrated device.
-  - **Acceptance Criteria:**
-    - Overdue instrument blocked at tool crib; reason and due date shown
-    - Extension can be granted with expiry, justification, approver identity
+### Out of Scope
+- Live chat or real-time support integration.
+- Automated troubleshooting or AI-driven support beyond static content.
+- Customization of help content per site or user role (unless specified in future requirements).
 
 ---
 
-### Feature 2: Guided Calibration Capture (FEAT-02)
-**Description:**  
-Presents calibration procedure for instrument type, captures as-found/as-left readings at each test point, evaluates against tolerance.
+## 3. Epic and Feature Decomposition (with revision)
 
-#### User Stories
-- **US-201:**  
-  As a metrology technician, I want the test points and tolerances for this instrument presented in order, so I follow the approved procedure.
-  - **Acceptance Criteria:**
-    - Procedure, revision, test points, tolerance, reference standard shown
-    - Reference standard out of calibration blocks procedure
-
-- **US-202:**  
-  As a quality engineer, I want as-found readings captured before any adjustment, so the condition during production use is recorded honestly.
-  - **Acceptance Criteria:**
-    - As-found values locked before as-left entry
-    - Out-of-tolerance as-found flags calibration as failure
+| ID       | Type    | Title                                 | Outcome                                                                 |
+|----------|---------|---------------------------------------|-------------------------------------------------------------------------|
+| EPIC-01  | Epic    | Equipment Calibration Compliance       | Ensure calibration is scheduled, performed, assessed, and recorded with immediate traceability when failures occur. |
+| FEAT-01  | Feature | Calibration Scheduling and Due Mgmt    | Provide actionable due list and prevent overdue instruments from being used. |
+| FEAT-02  | Feature | Guided Calibration Capture             | Capture approved-procedure readings, conditions, and traceability data with immutable as-found values. |
+| FEAT-03  | Feature | Out-of-Tolerance Impact Assessment     | Identify measurements potentially affected by a failed instrument and expose completeness status. |
+| FEAT-04  | Feature | Certificate and Traceability           | Generate an attributable certificate from the stored calibration record and preserve its evidence. |
+| FEAT-05  | Feature | Offline Capture and Synchronization    | Support shop-floor and laboratory work during intermittent connectivity. |
+| FEAT-06  | Feature | Identity, Competency, and Auditability | Enforce role, competency, attribution, and audit requirements. |
+| FEAT-07  | Feature | Impact Narrative Review Workflow       | Produce a model-drafted summary for quality-engineer review without allowing AI to make the impact decision. |
+| FEAT-08  | Feature | Help and FAQ Pages                    | Provide accessible guidance and answers to common questions for all users. |  **← Added**
 
 ---
 
-### Feature 3: Out-of-Tolerance Impact Assessment (FEAT-03)
-**Description:**  
-When an instrument is found out of tolerance, produces the list of measurements taken with it since last passing calibration for quality team review.
+## 4. Features, User Stories, Acceptance Criteria
 
-#### User Stories
-- **US-301:**  
-  As a quality engineer, I want an immediate impact list when an instrument fails, so affected product can be assessed.
-  - **Acceptance Criteria:**
-    - Impact list generated within 10 minutes
-    - List includes all measurements since last passing calibration
-    - Partial/incomplete lists are explicitly labelled
+### FEAT-08 — Help and FAQ Pages
 
----
+#### US-801 — Help Page Access
 
-### Feature 4: Certificate Generation and Traceability (FEAT-04)
-**Description:**  
-Generates certificates from the calibration record, ensures reference standard traceability, stores certificates immutably.
+**As a** technician, supervisor, or quality engineer  
+**I want** to access a Help page from any screen  
+**so that** I can understand how to use the application and resolve workflow issues.
 
-#### User Stories
-- **US-401:**  
-  As a metrology technician, I want certificates issued from the record, so traceability is provable and manual transcription is eliminated.
-  - **Acceptance Criteria:**
-    - Certificate generated from stored calibration record
-    - Reference standard chain recorded and provable
-    - Certificate stored in immutable blob storage
+**Acceptance Criteria**
+- A Help link or icon is available from the main navigation and each primary workflow screen.
+- The Help page provides context-sensitive guidance based on the current screen or feature.
+- Guidance includes step-by-step instructions, explanations of terminology, and links to relevant FAQ entries.
+- Help content is accessible offline for shop-floor and laboratory users.
+- Help content is reviewed and approved by the quality management team before deployment.
 
----
+#### US-802 — FAQ Page Access
 
-## 3. Tasks
+**As a** technician, supervisor, or quality engineer  
+**I want** to access a FAQ page  
+**so that** I can quickly find answers to common questions about calibration, impact assessment, certificate generation, offline capture, and system integrations.
 
-### FEAT-01: Calibration Scheduling and Due Management
-- Integrate with quality management system for instrument master data
-- Implement due/overdue calculation logic
-- Build notification workflow for overdue instruments
-- Develop tool crib blocking logic and extension workflow
+**Acceptance Criteria**
+- FAQ link is available from the main navigation and Help page.
+- FAQ entries are searchable and categorized (e.g., Calibration, Impact, Certificates, Offline, Integration).
+- FAQ answers are concise, accurate, and reference relevant procedures or help topics.
+- FAQ content is reviewed and approved by the quality management team before deployment.
+- FAQ content is accessible offline.
 
-### FEAT-02: Guided Calibration Capture
-- Implement procedure presentation per instrument type
-- Reference standard selection and validity check
-- As-found/as-left entry and locking logic
-- Tolerance evaluation and failure flagging
+#### US-803 — Help and FAQ Content Management
 
-### FEAT-03: Out-of-Tolerance Impact Assessment
-- Integrate with manufacturing execution system for measurement history
-- Build impact assessment engine (Azure Functions)
-- Implement partial/incomplete impact list handling
-- Develop engineer review workflow (Foundry agent)
+**As a** quality manager  
+**I want** to review and approve Help and FAQ content  
+**so that** guidance is accurate and compliant with quality standards.
 
-### FEAT-04: Certificate Generation and Traceability
-- Certificate rendering from calibration record
-- Reference standard chain validation
-- Blob storage integration for immutable certificate storage
+**Acceptance Criteria**
+- Help and FAQ content is managed as versioned artifacts.
+- Content changes require quality manager approval before publication.
+- Audit log records content changes and approvals.
 
 ---
 
-## 4. Acceptance Criteria (Summary Table)
+## 5. Tasks and Dependencies
 
-| Feature | User Story | Acceptance Criteria |
-|---------|------------|--------------------|
-| FEAT-01 | US-101     | Sorted due list, overdue notification |
-| FEAT-01 | US-102     | Tool crib block, extension workflow   |
-| FEAT-02 | US-201     | Procedure/tolerance display, standard validity |
-| FEAT-02 | US-202     | As-found lock, failure flag           |
-| FEAT-03 | US-301     | Impact list within 10 min, completeness label |
-| FEAT-04 | US-401     | Certificate from record, traceability, immutable storage |
+### Tasks
 
----
+- Design Help and FAQ page layouts (UX, navigation, accessibility).
+- Draft initial Help and FAQ content (collaborate with quality management).
+- Implement Help and FAQ page components in Angular/Ionic client.
+- Integrate context-sensitive Help triggers on workflow screens.
+- Enable offline access to Help and FAQ content.
+- Establish content review and approval workflow.
+- Test Help and FAQ accessibility and offline behavior.
 
-## 5. Dependencies
+### Dependencies
 
-- **Quality Management System:** Instrument master data, procedures
-- **Manufacturing Execution System:** Measurement history for impact assessment
-- **Training Records System:** Calibration competency validation
-- **Azure SQL Database:** Calibration records, test points, readings, certificates
-- **Azure Blob Storage:** Certificate and environmental evidence storage
-- **Microsoft Foundry Agent Framework:** Impact narrative workflow
-- **Azure API Management:** Model traffic routing, authentication
+- Quality management team for content review and approval.
+- UX team for page layout and navigation integration.
+- Existing application navigation and offline infrastructure.
 
 ---
 
 ## 6. Risks
 
-| Risk | Mitigation |
-|------|------------|
-| Instrument master/procedure API unavailable | Serve cached procedure, block certificate issue |
-| Measurement history API timeout | Present partial impact list, block certificate issue |
-| Reference standard out of calibration | Block calibration, state reason |
-| As-found readings not locked | Explicit boundary enforcement, test coverage |
-| Certificate issue without competency | Server-side competency check, audit trail |
-| Blob storage write failure | Retry logic, alert, block certificate issue |
-| Offline capture sync failure | Service worker, retry on reconnection |
+- **Content accuracy:** Incorrect or outdated guidance may lead to compliance issues.
+- **Approval delays:** Help and FAQ content must be reviewed; delays may impact release timelines.
+- **Offline limitations:** Ensuring Help and FAQ content is available offline may require additional storage and synchronization logic.
+- **User adoption:** Users may not utilize Help or FAQ features unless clearly integrated and promoted.
 
 ---
 
-## 7. Non-Functional Requirements (NFRs)
+## 7. Traceability
 
-- **Availability:** Laboratory-hours, zone redundancy, warm standby
-- **Security:** Entra ID, conditional access, managed identity, competency gating
-- **Immutability:** As-found readings and certificates cannot be altered post-issue
-- **Accessibility:** All critical states and actions are accessible via text, not color alone
-- **Offline Support:** Service worker for shop floor/lab intermittent coverage
-- **Auditability:** All calibration, impact, and certificate actions are logged
+- Revision trace: This proposal is a revision of workflow run 4e7cc372-2e60-4d32-8e8d-8df9291ff84c, per human instructions.
+- All new features, user stories, and tasks are traceable to the revision instruction and mapped to the project epic.
 
 ---
 
-## 8. UX Inputs (Mapped to Features)
+## 8. Review Gate
 
-| Screen | Feature | Key UX Elements |
-|--------|---------|-----------------|
-| SCR-01 Calibration Due List | FEAT-01 | Filter chips, instrument rows, overdue badge, extension indicator |
-| SCR-02 Guided Calibration Capture | FEAT-02 | Standard selector, environmental conditions, test point entry, as-found lock |
-| SCR-03 Out-of-Tolerance Impact | FEAT-03 | Impact list, disposition recording |
-| SCR-04 Certificate and Traceability | FEAT-04 | Certificate issue, traceability chain |
+**Status:** Proposal ready for human review.  
+**Next step:** Human approval required before design or implementation.
 
 ---
 
-## 9. Proposal Summary
+**References:**  
+- [Requirements Intake Document](https://github.com/csdmichael/equipment-calibration-compliance/blob/main/docs/intake/requirements/Equipment-Calibration-Compliance-Requirements.docx)  
+- [Technical Requirements](https://github.com/csdmichael/equipment-calibration-compliance/blob/main/docs/intake/technical-requirements/Equipment-Calibration-Compliance-Technical-Requirements.docx)  
+- [UX Mockups](https://github.com/csdmichael/equipment-calibration-compliance/blob/main/docs/intake/ux-mockups/Equipment-Calibration-Compliance-UX-Mockups.docx)
 
-This plan stage proposal delivers a traceable requirements structure for the Equipment Calibration Compliance project, mapping approved business and UX inputs to epics, features, user stories, tasks, acceptance criteria, dependencies, and risks. All integrations, gating, and immutability requirements are explicitly addressed. Human approval gates are preserved for impact assessment narrative and certificate issue. No external system changes are claimed; all data and content are treated as untrusted until verified.
+---
 
-**Ready for review and approval.**
+**End of Requirements Agent Plan-Stage Proposal (Revision: Help and FAQ Pages)**
