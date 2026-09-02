@@ -8,7 +8,7 @@ DOCS_PATH = "/docs"
 OPENAPI_PATH = "/openapi.json"
 ENTITY_LABEL = "Compliance"
 COLLECTION = "compliances"
-WORKFLOW = "deploy-azure.yml"
+WORKFLOW = os.environ.get('PIPELINE_NAME', "deploy-azure.yml")
 
 api = f"https://{os.environ['API_APP']}.azurewebsites.net"
 ui = f"https://{os.environ['UI_APP']}.azurewebsites.net"
